@@ -20,6 +20,7 @@ export default function Page() {
   const [overlayMode, setOverlayMode] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [counterLabel, setCounterLabel] = useState('MORTES')
+  const [overlayUrl, setOverlayUrl] = useState('/overlay')
   const hydrated = useRef(false)
   const skipInitialPersist = useRef(true)
 
@@ -66,6 +67,10 @@ export default function Page() {
       channel?.removeEventListener('message', handleMessage)
       channel?.close()
     }
+  }, [])
+
+  useEffect(() => {
+    setOverlayUrl(`${window.location.origin}/overlay`)
   }, [])
 
   useEffect(() => {
@@ -139,7 +144,7 @@ export default function Page() {
             <div className="section-title"><span className="step">01</span><div><h2>Conectar ao OBS</h2><p>Adicione este overlay como fonte de navegador.</p></div></div>
             <div className="instruction"><span>1</span><p>No OBS, clique em <strong>+</strong> em Fontes e escolha <strong>Navegador</strong>.</p></div>
             <div className="instruction"><span>2</span><p>Use a URL abaixo e defina o tamanho como <strong>800 × 240</strong>.</p></div>
-            <div className="url-box"><code>{'deathcounter.app/overlay'}</code><button onClick={copyUrl} aria-label="Copiar URL">{copied ? <Check size={16} /> : <Copy size={16} />}</button></div>
+            <div className="url-box"><code>{overlayUrl}</code><button onClick={copyUrl} aria-label="Copiar URL">{copied ? <Check size={16} /> : <Copy size={16} />}</button></div>
             <button className="preview-button" onClick={() => setOverlayMode(true)}><Radio size={16} /> Visualizar overlay</button>
           </section>
         </div>
