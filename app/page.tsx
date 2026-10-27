@@ -1,8 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Minus, Plus, RotateCcw, Settings2, Radio, Copy, Check, Skull } from 'lucide-react'
+
+const OVERLAY_STATE_KEY = 'death-counter-overlay-state'
+const OVERLAY_CHANNEL_NAME = 'death-counter-overlay'
+
+type OverlayState = {
+  deaths: number
+  counterLabel: string
+}
 
 export default function Page() {
   const pathname = usePathname()
@@ -12,9 +20,71 @@ export default function Page() {
   const [overlayMode, setOverlayMode] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [counterLabel, setCounterLabel] = useState('MORTES')
+  const hydrated = useRef(false)
+  const skipInitialPersist = useRef(true)
 
   const changeDeaths = (amount: number) => setDeaths((current) => Math.max(0, current + amount))
   const resetDeaths = () => setDeaths(0)
+
+  useEffect(() => {
+    try {
+      const savedState = window.localStorage.getItem(OVERLAY_STATE_KEY)
+      if (savedState) {
+        const state = JSON.parse(savedState) as Partial<OverlayState>
+        if (typeof state.deaths === 'number' && state.deaths >= 0) setDeaths(state.deaths)
+        if (typeof state.counterLabel === 'string') setCounterLabel(state.counterLabel)
+      }
+    } catch (error) {
+      console.error('Não foi possível carregar o estado do overlay.', error)
+    } finally {
+      hydrated.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const applyState = (state: OverlayState) => {
+      if (typeof state.deaths === 'number' && state.deaths >= 0) setDeaths(state.deaths)
+      if (typeof state.counterLabel === 'string') setCounterLabel(state.counterLabel)
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== OVERLAY_STATE_KEY || !event.newValue) return
+      try {
+        applyState(JSON.parse(event.newValue) as OverlayState)
+      } catch (error) {
+        console.error('Não foi possível atualizar o estado do overlay.', error)
+      }
+    }
+    const channel = typeof BroadcastChannel !== 'undefined'
+      ? new BroadcastChannel(OVERLAY_CHANNEL_NAME)
+      : null
+    const handleMessage = (event: MessageEvent<OverlayState>) => applyState(event.data)
+
+    window.addEventListener('storage', handleStorage)
+    channel?.addEventListener('message', handleMessage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+      channel?.removeEventListener('message', handleMessage)
+      channel?.close()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated.current || skipInitialPersist.current) {
+      skipInitialPersist.current = false
+      return
+    }
+    const state: OverlayState = { deaths, counterLabel }
+    try {
+      window.localStorage.setItem(OVERLAY_STATE_KEY, JSON.stringify(state))
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel(OVERLAY_CHANNEL_NAME)
+        channel.postMessage(state)
+        channel.close()
+      }
+    } catch (error) {
+      console.error('Não foi possível sincronizar o estado do overlay.', error)
+    }
+  }, [deaths, counterLabel])
 
   const copyUrl = async () => {
     await navigator.clipboard?.writeText(`${window.location.origin}/overlay`)
